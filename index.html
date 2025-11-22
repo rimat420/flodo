@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#000000">
+    <title>Bahn Widget</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Nächste Verbindungen</h1>
+            <button id="switchDirection" class="direction-btn">
+                <span class="direction-text">Floridsdorf → Wien Mitte</span>
+            </button>
+        </header>
+        
+        <div id="loading" class="loading">Lade Verbindungen...</div>
+        <div id="error" class="error hidden"></div>
+        
+        <div id="connections" class="connections"></div>
+        
+        <div class="update-info">
+            <span id="lastUpdate">Noch nicht aktualisiert</span>
+            <button id="refresh" class="refresh-btn">↻</button>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
