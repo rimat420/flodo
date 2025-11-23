@@ -1,9 +1,9 @@
 // Configuration
 const API = "https://oebb.macistry.com/api";
 const STATIONS = {
-    FLORIDSDORF: "8103000",
-    WIEN_MITTE: "8101059",
-    PRATERSTERN: "8101039"
+    FLORIDSDORF: "1192101",
+    WIEN_MITTE: "1290302",
+    PRATERSTERN: "1290201"
 };
 
 // Allowed transport types (S-Bahn, REX, U-Bahn only)
