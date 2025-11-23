@@ -179,6 +179,77 @@ h1 {
     }
 }
 
+/* Mobile specific styles */
+@media (max-width: 768px) {
+    /* Force dark mode on mobile */
+    body {
+        background: #000 !important;
+        color: #fff !important;
+    }
+    
+    /* Larger fonts for mobile */
+    h1 {
+        font-size: 28px;
+    }
+    
+    .direction-btn {
+        font-size: 16px;
+        padding: 12px 18px;
+    }
+    
+    .departure-time {
+        font-size: 24px;
+    }
+    
+    .duration {
+        font-size: 16px;
+    }
+    
+    .train-type {
+        font-size: 14px;
+        padding: 3px 10px;
+    }
+    
+    .platform,
+    .arrival-time {
+        font-size: 16px;
+    }
+    
+    .transfers {
+        font-size: 14px;
+    }
+    
+    .update-info {
+        font-size: 14px;
+    }
+    
+    .connection {
+        padding: 18px;
+    }
+    
+    /* Override light mode for mobile */
+    .direction-btn,
+    .connection {
+        background: #1a1a1a !important;
+        border-color: #333 !important;
+        color: #fff !important;
+    }
+    
+    .train-type {
+        background: #333 !important;
+        color: #fff !important;
+    }
+    
+    .train-type.sbahn { background: #0066cc !important; }
+    .train-type.rex { background: #cc0000 !important; }
+    .train-type.ubahn { background: #ff6600 !important; }
+    
+    .error {
+        background: #330000 !important;
+        border-color: #660000 !important;
+    }
+}
+
 /* Dark mode is default, but respect light mode preference */
 @media (prefers-color-scheme: light) {
     body {
