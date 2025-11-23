@@ -107,13 +107,13 @@ async function getConnections(direction = 'forward') {
             });
             
         } else {
-            // Reverse: Praterstern → Floridsdorf (checking Wien Mitte)
-            const [floridsdorfConnections, mitteConnections] = await Promise.all([
+            // Reverse: Praterstern → Floridsdorf (also check Wien Mitte → Floridsdorf)
+            const [floridsdorfConnections, mitteToFloridsdorfConnections] = await Promise.all([
                 fetchJourneys(STATIONS.PRATERSTERN, STATIONS.FLORIDSDORF),
-                fetchJourneys(STATIONS.PRATERSTERN, STATIONS.WIEN_MITTE)
+                fetchJourneys(STATIONS.WIEN_MITTE, STATIONS.FLORIDSDORF)
             ]);
             
-            // Group connections by train
+            // Group connections by train from Praterstern → Floridsdorf
             floridsdorfConnections.forEach(conn => {
                 const key = `${conn.departure}_${conn.legs[0].line?.name || ''}`;
                 connections.set(key, {
@@ -123,12 +123,16 @@ async function getConnections(direction = 'forward') {
                 });
             });
             
-            // Add Wien Mitte arrival times
-            mitteConnections.forEach(conn => {
-                const key = `${conn.departure}_${conn.legs[0].line?.name || ''}`;
-                if (connections.has(key)) {
-                    connections.get(key).wienMitteArrival = conn.arrival;
-                }
+            // Find matching trains from Wien Mitte → Floridsdorf to get Wien Mitte departure/arrival
+            mitteToFloridsdorfConnections.forEach(mitteConn => {
+                // Find a matching connection based on train line and arrival time at Floridsdorf
+                connections.forEach((conn, key) => {
+                    if (conn.legs[0].line?.name === mitteConn.legs[0].line?.name &&
+                        conn.floridsdorfArrival === mitteConn.arrival) {
+                        // This is the same train - Wien Mitte departure is the arrival we need
+                        conn.wienMitteArrival = mitteConn.departure;
+                    }
+                });
             });
         }
     } catch (error) {
@@ -221,21 +225,25 @@ function createConnectionElement(connection) {
     const delay = firstLeg.delay ? Math.round(firstLeg.delay / 60) : 0;
     const delayText = delay > 0 ? `<span class="delay">+${delay}</span>` : '';
     
-    // Build arrival times HTML
+    // Build arrival times HTML with correct chronological order
     let arrivalTimesHTML = '';
     
     if (currentDirection === 'forward') {
-        // Forward: show Wien Mitte and Praterstern times
+        // Forward: Wien Mitte comes before Praterstern
         if (connection.wienMitteArrival) {
             arrivalTimesHTML += `<div class="arrival-time">Wien Mitte: ${formatTime(new Date(connection.wienMitteArrival))}</div>`;
         }
-        arrivalTimesHTML += `<div class="arrival-time">Praterstern: ${formatTime(new Date(connection.pratersternArrival))}</div>`;
+        if (connection.pratersternArrival) {
+            arrivalTimesHTML += `<div class="arrival-time">Praterstern: ${formatTime(new Date(connection.pratersternArrival))}</div>`;
+        }
     } else {
-        // Reverse: show Wien Mitte and Floridsdorf times
+        // Reverse: Wien Mitte comes before Floridsdorf
         if (connection.wienMitteArrival) {
             arrivalTimesHTML += `<div class="arrival-time">Wien Mitte: ${formatTime(new Date(connection.wienMitteArrival))}</div>`;
         }
-        arrivalTimesHTML += `<div class="arrival-time">Floridsdorf: ${formatTime(new Date(connection.floridsdorfArrival))}</div>`;
+        if (connection.floridsdorfArrival) {
+            arrivalTimesHTML += `<div class="arrival-time">Floridsdorf: ${formatTime(new Date(connection.floridsdorfArrival))}</div>`;
+        }
     }
     
     // Calculate duration (always to final destination)
