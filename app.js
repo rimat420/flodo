@@ -1,20 +1,13 @@
 // Configuration
-const API = "https://v6.oebb.transport.rest";
+const API = "https://oebb.macistry.com/api";
 const STATIONS = {
     FLORIDSDORF: "8103000",
     WIEN_MITTE: "8101059",
     PRATERSTERN: "8101039"
 };
 
-// Allowed transport types - expanded list
-const ALLOWED_PRODUCTS = [
-    'suburban',     // S-Bahn
-    'regional',     // REX, R
-    'subway',       // U-Bahn
-    'nationalExp',  // ICE, RJ
-    'national',     // IC, EC
-    'citybus',      // Sometimes needed for connections
-];
+// Allowed transport types (S-Bahn, REX, U-Bahn only)
+const ALLOWED_PRODUCTS = ['suburban', 'regional', 'subway'];
 
 // App state
 let currentDirection = 'forward';
@@ -23,7 +16,6 @@ let updateInterval = null;
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('App initializing...');
     initializeApp();
     loadConnections();
     
@@ -66,13 +58,11 @@ function updateDirectionDisplay() {
     } else {
         directionText.textContent = 'Wien Mitte/Praterstern → Floridsdorf';
     }
-    console.log('Direction updated to:', currentDirection);
 }
 
 // Load connections
 async function loadConnections() {
     showLoading(true);
-    console.log('Loading connections for direction:', currentDirection);
     
     try {
         const connections = await getConnections(currentDirection);
@@ -80,7 +70,6 @@ async function loadConnections() {
         updateLastUpdateTime();
         hideError();
     } catch (error) {
-        console.error('Error loading connections:', error);
         showError('Fehler beim Laden der Verbindungen: ' + error.message);
     } finally {
         showLoading(false);
@@ -89,61 +78,47 @@ async function loadConnections() {
 
 // Get connections from API
 async function getConnections(direction = 'forward') {
+    let origin, destinations;
+    
+    if (direction === 'forward') {
+        origin = STATIONS.FLORIDSDORF;
+        destinations = [STATIONS.WIEN_MITTE, STATIONS.PRATERSTERN];
+    } else {
+        // For reverse, try both as origin
+        origin = null;
+        destinations = [STATIONS.FLORIDSDORF];
+    }
+    
     const allConnections = [];
     
     if (direction === 'forward') {
-        // Forward: Floridsdorf to Wien Mitte/Praterstern
-        console.log('Getting connections from Floridsdorf to Wien Mitte and Praterstern');
-        
-        // Try Wien Mitte
-        try {
-            const connections = await fetchJourneys(STATIONS.FLORIDSDORF, STATIONS.WIEN_MITTE);
-            allConnections.push(...connections.map(c => ({
-                ...c,
-                targetStation: 'Wien Mitte'
-            })));
-        } catch (error) {
-            console.error('Error fetching Floridsdorf → Wien Mitte:', error);
-        }
-        
-        // Try Praterstern
-        try {
-            const connections = await fetchJourneys(STATIONS.FLORIDSDORF, STATIONS.PRATERSTERN);
-            allConnections.push(...connections.map(c => ({
-                ...c,
-                targetStation: 'Praterstern'
-            })));
-        } catch (error) {
-            console.error('Error fetching Floridsdorf → Praterstern:', error);
+        // Get journeys to all destinations
+        for (const dest of destinations) {
+            try {
+                const connections = await fetchJourneys(origin, dest);
+                allConnections.push(...connections.map(c => ({
+                    ...c,
+                    targetStation: dest === STATIONS.WIEN_MITTE ? 'Wien Mitte' : 'Praterstern'
+                })));
+            } catch (error) {
+                console.error(`Error fetching ${origin} to ${dest}:`, error);
+            }
         }
     } else {
-        // Reverse: Wien Mitte/Praterstern to Floridsdorf
-        console.log('Getting connections from Wien Mitte and Praterstern to Floridsdorf');
-        
-        // Try from Wien Mitte
-        try {
-            const connections = await fetchJourneys(STATIONS.WIEN_MITTE, STATIONS.FLORIDSDORF);
-            allConnections.push(...connections.map(c => ({
-                ...c,
-                originStation: 'Wien Mitte'
-            })));
-        } catch (error) {
-            console.error('Error fetching Wien Mitte → Floridsdorf:', error);
-        }
-        
-        // Try from Praterstern
-        try {
-            const connections = await fetchJourneys(STATIONS.PRATERSTERN, STATIONS.FLORIDSDORF);
-            allConnections.push(...connections.map(c => ({
-                ...c,
-                originStation: 'Praterstern'
-            })));
-        } catch (error) {
-            console.error('Error fetching Praterstern → Floridsdorf:', error);
+        // For reverse direction, try from both stations
+        const origins = [STATIONS.WIEN_MITTE, STATIONS.PRATERSTERN];
+        for (const org of origins) {
+            try {
+                const connections = await fetchJourneys(org, STATIONS.FLORIDSDORF);
+                allConnections.push(...connections.map(c => ({
+                    ...c,
+                    originStation: org === STATIONS.WIEN_MITTE ? 'Wien Mitte' : 'Praterstern'
+                })));
+            } catch (error) {
+                console.error(`Error fetching ${org} to Floridsdorf:`, error);
+            }
         }
     }
-    
-    console.log(`Total connections found: ${allConnections.length}`);
     
     // Sort by departure time and return top 5
     return allConnections
@@ -153,115 +128,47 @@ async function getConnections(direction = 'forward') {
 
 // Fetch journeys from API
 async function fetchJourneys(from, to) {
-    // Build URL with parameters
-    const params = new URLSearchParams({
-        from: from,
-        to: to,
-        results: '10',  // Get more results initially
-        suburban: 'true',
-        regional: 'true', 
-        subway: 'true',
-        nationalExp: 'true',
-        national: 'true',
-        bus: 'false',
-        tram: 'false'
-    });
-    
-    const url = `${API}/journeys?${params}`;
-    
-    console.log(`Fetching: ${getStationName(from)} → ${getStationName(to)}`);
-    console.log('URL:', url);
+    const url = `${API}/journeys?from=${from}&to=${to}&results=5&suburban=true&regional=true&subway=true&bus=false&tram=false`;
     
     try {
         const response = await fetch(url);
-        console.log('Response status:', response.status);
-        
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error('API Error Response:', errorText);
-            throw new Error(`HTTP ${response.status}: ${errorText}`);
+            throw new Error(`HTTP ${response.status}`);
         }
         
         const data = await response.json();
-        console.log('API Response:', {
-            journeys: data.journeys?.length || 0,
-            earlierRef: data.earlierRef,
-            laterRef: data.laterRef
-        });
-        
-        if (!data.journeys || data.journeys.length === 0) {
-            console.warn('No journeys in response');
-            return [];
-        }
-        
-        // Log first journey for debugging
-        if (data.journeys[0]) {
-            console.log('First journey example:', {
-                legs: data.journeys[0].legs.map(leg => ({
-                    line: leg.line?.name,
-                    product: leg.line?.product,
-                    from: leg.origin?.name,
-                    to: leg.destination?.name
-                }))
-            });
-        }
         
         // Filter and process journeys
-        const filtered = data.journeys.filter(journey => {
-            // Must have at least one non-walking leg
-            const hasTransport = journey.legs.some(leg => !leg.walking && leg.line);
-            
-            // Check if journey uses allowed products
-            const usesAllowedProducts = journey.legs.every(leg => {
-                if (leg.walking) return true;
-                if (!leg.line || !leg.line.product) {
-                    console.log('Leg without product:', leg);
-                    return false;
-                }
-                
-                const isAllowed = ALLOWED_PRODUCTS.includes(leg.line.product);
-                if (!isAllowed) {
-                    console.log(`Filtered out: ${leg.line.product} (${leg.line.name})`);
-                }
-                return isAllowed;
-            });
-            
-            return hasTransport && usesAllowedProducts;
-        });
-        
-        console.log(`Filtered ${data.journeys.length} → ${filtered.length} journeys`);
-        
-        return filtered.map(journey => ({
-            departure: journey.legs[0].departure,
-            arrival: journey.legs[journey.legs.length - 1].arrival,
-            duration: calculateDuration(journey.legs[0].departure, journey.legs[journey.legs.length - 1].arrival),
-            transfers: journey.legs.filter(leg => !leg.walking).length - 1,
-            legs: journey.legs.filter(leg => !leg.walking).map(leg => ({
-                departure: leg.departure,
-                arrival: leg.arrival,
-                line: {
-                    name: leg.line.name,
-                    product: leg.line.product,
-                    direction: leg.direction
-                },
-                platform: leg.departurePlatform || leg.plannedDeparturePlatform,
-                delay: leg.departureDelay
-            }))
-        }));
+        return data.journeys
+            .filter(journey => {
+                // Check if all legs use allowed transport types
+                return journey.legs.every(leg => {
+                    if (leg.walking) return true; // Walking is OK
+                    if (!leg.line || !leg.line.product) return false;
+                    return ALLOWED_PRODUCTS.includes(leg.line.product);
+                });
+            })
+            .map(journey => ({
+                departure: journey.legs[0].departure,
+                arrival: journey.legs[journey.legs.length - 1].arrival,
+                duration: calculateDuration(journey.legs[0].departure, journey.legs[journey.legs.length - 1].arrival),
+                transfers: journey.legs.length - 1,
+                legs: journey.legs.map(leg => ({
+                    departure: leg.departure,
+                    arrival: leg.arrival,
+                    line: leg.line ? {
+                        name: leg.line.name,
+                        product: leg.line.product,
+                        direction: leg.direction
+                    } : null,
+                    platform: leg.departurePlatform,
+                    delay: leg.departureDelay
+                }))
+            }));
     } catch (error) {
-        console.error('Fetch error:', error);
+        console.error('API Error:', error);
         throw error;
     }
-}
-
-// Get station name for logging
-function getStationName(id) {
-    const names = {
-        "8103000": "Floridsdorf",
-        "8101059": "Wien Mitte",
-        "8101039": "Praterstern"
-    };
-    return names[id] || id;
 }
 
 // Calculate duration in minutes
@@ -314,7 +221,7 @@ function createConnectionElement(connection) {
         <div class="connection-details">
             <div class="train-info">
                 <span class="train-type ${getProductClass(firstLeg.line.product)}">${firstLeg.line.name}</span>
-                <span class="platform">${firstLeg.platform ? `Gleis ${firstLeg.platform}` : ''}</span>
+                <span class="platform">Gleis ${firstLeg.platform || '?'}</span>
             </div>
             <div class="arrival-time">
                 Ankunft ${formatTime(arrTime)} ${stationText ? `(${stationText})` : ''}
@@ -330,11 +237,8 @@ function createConnectionElement(connection) {
 function getProductClass(product) {
     switch(product) {
         case 'suburban': return 'sbahn';
-        case 'regional':
-        case 'regionalExp': return 'rex';
+        case 'regional': return 'rex';
         case 'subway': return 'ubahn';
-        case 'national':
-        case 'nationalExp': return 'rex';
         default: return '';
     }
 }
