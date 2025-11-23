@@ -122,18 +122,56 @@ async function getConnections(direction = 'forward') {
 
 // Helper function to get intermediate stop time
 async function getIntermediateStopTime(connection, stationId) {
-    // For now, we'll estimate Wien Mitte time based on the journey
-    // In a real implementation, we would need to query the full trip details
-    // or check if Wien Mitte is in the journey legs
+    try {
+        // For forward direction: get journey from origin to Wien Mitte with same departure
+        // For reverse direction: get journey from Wien Mitte to destination
+        
+        const depTime = new Date(connection.departure).toISOString();
+        
+        if (currentDirection === 'forward') {
+            // Floridsdorf → Wien Mitte
+            const url = `${API}/journeys?from=${connection.legs[0].origin.id}&to=${stationId}&departure=${depTime}&results=3`;
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            if (data.journeys && data.journeys.length > 0) {
+                // Find journey with matching train number
+                const matchingJourney = data.journeys.find(j => 
+                    j.legs[0].tripId === connection.legs[0].tripId ||
+                    (j.legs[0].line && connection.legs[0].line && 
+                     j.legs[0].line.name === connection.legs[0].line.name &&
+                     Math.abs(new Date(j.legs[0].departure) - new Date(connection.departure)) < 60000)
+                );
+                
+                if (matchingJourney) {
+                    return matchingJourney.legs[matchingJourney.legs.length - 1].arrival;
+                }
+            }
+        } else {
+            // Praterstern → Wien Mitte → Floridsdorf
+            // We need to check if the train stops at Wien Mitte
+            const url = `${API}/journeys?from=${STATIONS.PRATERSTERN}&to=${STATIONS.WIEN_MITTE}&departure=${depTime}&results=3`;
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            if (data.journeys && data.journeys.length > 0) {
+                const matchingJourney = data.journeys.find(j => 
+                    j.legs[0].tripId === connection.legs[0].tripId ||
+                    (j.legs[0].line && connection.legs[0].line && 
+                     j.legs[0].line.name === connection.legs[0].line.name &&
+                     Math.abs(new Date(j.legs[0].departure) - new Date(connection.departure)) < 60000)
+                );
+                
+                if (matchingJourney) {
+                    return matchingJourney.legs[matchingJourney.legs.length - 1].arrival;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching Wien Mitte time:', error);
+    }
     
-    const depTime = new Date(connection.departure);
-    const arrTime = new Date(connection.arrival);
-    
-    // Simple estimation: Wien Mitte is roughly in the middle of the journey
-    // This should be replaced with actual API data if available
-    const middleTime = new Date(depTime.getTime() + (arrTime.getTime() - depTime.getTime()) / 2);
-    
-    return middleTime.toISOString();
+    return null;
 }
 
 // Fetch journeys from API
@@ -217,12 +255,19 @@ function createConnectionElement(connection) {
     const delay = firstLeg.delay ? Math.round(firstLeg.delay / 60) : 0;
     const delayText = delay > 0 ? `<span class="delay">+${delay}</span>` : '';
     
-    // Get Wien Mitte arrival time if available
-    const wienMitteArrivalText = connection.wienMitteArrival ? 
-        `Wien Mitte: ${formatTime(new Date(connection.wienMitteArrival))}, ` : '';
-    
     // Determine final destination
     const finalDestination = currentDirection === 'forward' ? 'Praterstern' : 'Floridsdorf';
+    
+    // Build arrival times HTML
+    let arrivalTimesHTML = '';
+    if (connection.wienMitteArrival) {
+        arrivalTimesHTML = `
+            <div class="arrival-time">Wien Mitte: ${formatTime(new Date(connection.wienMitteArrival))}</div>
+            <div class="arrival-time">${finalDestination}: ${formatTime(arrTime)}</div>
+        `;
+    } else {
+        arrivalTimesHTML = `<div class="arrival-time">${finalDestination}: ${formatTime(arrTime)}</div>`;
+    }
     
     div.innerHTML = `
         <div class="connection-header">
@@ -237,9 +282,7 @@ function createConnectionElement(connection) {
                 <span class="train-type ${getProductClass(firstLeg.line.product)}">${firstLeg.line.name}</span>
                 <span class="platform">Gleis ${firstLeg.platform || '?'}</span>
             </div>
-            <div class="arrival-time">
-                Ankunft: ${wienMitteArrivalText}${finalDestination}: ${formatTime(arrTime)}
-            </div>
+            ${arrivalTimesHTML}
             ${connection.transfers > 0 ? `<div class="transfers">${connection.transfers} Umstieg${connection.transfers > 1 ? 'e' : ''}</div>` : ''}
         </div>
     `;
