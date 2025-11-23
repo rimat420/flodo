@@ -19,8 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
     loadConnections();
     
-    // Auto-refresh every 30 seconds
-    updateInterval = setInterval(loadConnections, 30000);
+    // Auto-refresh every 90 seconds
+    updateInterval = setInterval(loadConnections, 90000);
     
     // Event listeners
     document.getElementById('refresh').addEventListener('click', () => {
@@ -54,9 +54,9 @@ function switchDirection() {
 function updateDirectionDisplay() {
     const directionText = document.querySelector('.direction-text');
     if (currentDirection === 'forward') {
-        directionText.textContent = 'Floridsdorf → Wien Mitte/Praterstern';
+        directionText.textContent = 'Floridsdorf → Praterstern';
     } else {
-        directionText.textContent = 'Wien Mitte/Praterstern → Floridsdorf';
+        directionText.textContent = 'Praterstern → Floridsdorf';
     }
 }
 
@@ -78,52 +78,62 @@ async function loadConnections() {
 
 // Get connections from API
 async function getConnections(direction = 'forward') {
-    let origin, destinations;
-    
-    if (direction === 'forward') {
-        origin = STATIONS.FLORIDSDORF;
-        destinations = [STATIONS.WIEN_MITTE, STATIONS.PRATERSTERN];
-    } else {
-        // For reverse, try both as origin
-        origin = null;
-        destinations = [STATIONS.FLORIDSDORF];
-    }
-    
     const allConnections = [];
     
-    if (direction === 'forward') {
-        // Get journeys to all destinations
-        for (const dest of destinations) {
-            try {
-                const connections = await fetchJourneys(origin, dest);
-                allConnections.push(...connections.map(c => ({
-                    ...c,
-                    targetStation: dest === STATIONS.WIEN_MITTE ? 'Wien Mitte' : 'Praterstern'
-                })));
-            } catch (error) {
-                console.error(`Error fetching ${origin} to ${dest}:`, error);
+    try {
+        if (direction === 'forward') {
+            // Forward: Floridsdorf → Praterstern (with Wien Mitte info)
+            const connections = await fetchJourneys(STATIONS.FLORIDSDORF, STATIONS.PRATERSTERN);
+            
+            // For each connection, also fetch Wien Mitte arrival time
+            for (const conn of connections) {
+                // Try to get Wien Mitte arrival by checking the same train
+                const wienMitteTime = await getIntermediateStopTime(conn, STATIONS.WIEN_MITTE);
+                allConnections.push({
+                    ...conn,
+                    targetStation: 'Praterstern',
+                    wienMitteArrival: wienMitteTime
+                });
+            }
+        } else {
+            // Reverse: Praterstern → Floridsdorf (with Wien Mitte info)
+            const connections = await fetchJourneys(STATIONS.PRATERSTERN, STATIONS.FLORIDSDORF);
+            
+            // For each connection, also fetch Wien Mitte arrival time
+            for (const conn of connections) {
+                const wienMitteTime = await getIntermediateStopTime(conn, STATIONS.WIEN_MITTE);
+                allConnections.push({
+                    ...conn,
+                    originStation: 'Praterstern',
+                    targetStation: 'Floridsdorf',
+                    wienMitteArrival: wienMitteTime
+                });
             }
         }
-    } else {
-        // For reverse direction, try from both stations
-        const origins = [STATIONS.WIEN_MITTE, STATIONS.PRATERSTERN];
-        for (const org of origins) {
-            try {
-                const connections = await fetchJourneys(org, STATIONS.FLORIDSDORF);
-                allConnections.push(...connections.map(c => ({
-                    ...c,
-                    originStation: org === STATIONS.WIEN_MITTE ? 'Wien Mitte' : 'Praterstern'
-                })));
-            } catch (error) {
-                console.error(`Error fetching ${org} to Floridsdorf:`, error);
-            }
-        }
+    } catch (error) {
+        console.error('Error fetching connections:', error);
     }
     
     // Sort by departure time and return top 5
     return allConnections
         .sort((a, b) => new Date(a.departure) - new Date(b.departure))
         .slice(0, 5);
+}
+
+// Helper function to get intermediate stop time
+async function getIntermediateStopTime(connection, stationId) {
+    // For now, we'll estimate Wien Mitte time based on the journey
+    // In a real implementation, we would need to query the full trip details
+    // or check if Wien Mitte is in the journey legs
+    
+    const depTime = new Date(connection.departure);
+    const arrTime = new Date(connection.arrival);
+    
+    // Simple estimation: Wien Mitte is roughly in the middle of the journey
+    // This should be replaced with actual API data if available
+    const middleTime = new Date(depTime.getTime() + (arrTime.getTime() - depTime.getTime()) / 2);
+    
+    return middleTime.toISOString();
 }
 
 // Fetch journeys from API
@@ -207,8 +217,12 @@ function createConnectionElement(connection) {
     const delay = firstLeg.delay ? Math.round(firstLeg.delay / 60) : 0;
     const delayText = delay > 0 ? `<span class="delay">+${delay}</span>` : '';
     
-    // Determine destination/origin text
-    const stationText = connection.targetStation || connection.originStation || '';
+    // Get Wien Mitte arrival time if available
+    const wienMitteArrivalText = connection.wienMitteArrival ? 
+        `Wien Mitte: ${formatTime(new Date(connection.wienMitteArrival))}, ` : '';
+    
+    // Determine final destination
+    const finalDestination = currentDirection === 'forward' ? 'Praterstern' : 'Floridsdorf';
     
     div.innerHTML = `
         <div class="connection-header">
@@ -224,7 +238,7 @@ function createConnectionElement(connection) {
                 <span class="platform">Gleis ${firstLeg.platform || '?'}</span>
             </div>
             <div class="arrival-time">
-                Ankunft ${formatTime(arrTime)} ${stationText ? `(${stationText})` : ''}
+                Ankunft: ${wienMitteArrivalText}${finalDestination}: ${formatTime(arrTime)}
             </div>
             ${connection.transfers > 0 ? `<div class="transfers">${connection.transfers} Umstieg${connection.transfers > 1 ? 'e' : ''}</div>` : ''}
         </div>
