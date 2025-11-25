@@ -83,10 +83,10 @@ async function getConnections(direction = 'forward') {
     try {
         if (direction === 'forward') {
             // Forward: Floridsdorf → Wien Mitte (with Praterstern as intermediate)
-            const [mitteConnections, pratersternConnections] = await Promise.all([
-                fetchJourneys(STATIONS.FLORIDSDORF, STATIONS.WIEN_MITTE),
-                fetchJourneys(STATIONS.FLORIDSDORF, STATIONS.PRATERSTERN)
-            ]);
+            // Add small delay between API calls to avoid rate limiting
+            const mitteConnections = await fetchJourneys(STATIONS.FLORIDSDORF, STATIONS.WIEN_MITTE);
+            await new Promise(resolve => setTimeout(resolve, 200)); // 200ms delay
+            const pratersternConnections = await fetchJourneys(STATIONS.FLORIDSDORF, STATIONS.PRATERSTERN);
             
             // Use Wien Mitte connections as base
             mitteConnections.forEach(conn => {
@@ -108,10 +108,9 @@ async function getConnections(direction = 'forward') {
             
         } else {
             // Reverse: Wien Mitte → Floridsdorf (with Praterstern as intermediate)
-            const [floridsdorfConnections, pratersternConnections] = await Promise.all([
-                fetchJourneys(STATIONS.WIEN_MITTE, STATIONS.FLORIDSDORF),
-                fetchJourneys(STATIONS.WIEN_MITTE, STATIONS.PRATERSTERN)
-            ]);
+            const floridsdorfConnections = await fetchJourneys(STATIONS.WIEN_MITTE, STATIONS.FLORIDSDORF);
+            await new Promise(resolve => setTimeout(resolve, 200)); // 200ms delay
+            const pratersternConnections = await fetchJourneys(STATIONS.WIEN_MITTE, STATIONS.PRATERSTERN);
             
             // Use Floridsdorf connections as base
             floridsdorfConnections.forEach(conn => {
@@ -131,6 +130,10 @@ async function getConnections(direction = 'forward') {
                 }
             });
         }
+        
+        // Log what we found
+        console.log(`Direction: ${direction}, found ${connections.size} connections`);
+        
     } catch (error) {
         console.error('Error fetching connections:', error);
     }
@@ -141,29 +144,46 @@ async function getConnections(direction = 'forward') {
         .slice(0, 5);
 }
 
-// Fetch journeys from API
-async function fetchJourneys(from, to) {
+// Fetch journeys from API with retry logic
+async function fetchJourneys(from, to, retries = 2) {
     const url = `${API}/journeys?from=${from}&to=${to}&results=5&suburban=true&regional=true&subway=true&bus=false&tram=false`;
     
-    try {
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        // Filter and process journeys
-        return data.journeys
-            .filter(journey => {
-                // Check if all legs use allowed transport types
-                return journey.legs.every(leg => {
-                    if (leg.walking) return true; // Walking is OK
-                    if (!leg.line || !leg.line.product) return false;
-                    return ALLOWED_PRODUCTS.includes(leg.line.product);
+    for (let i = 0; i <= retries; i++) {
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            // Check if we got valid data
+            if (!data.journeys || !Array.isArray(data.journeys)) {
+                console.warn(`No journeys array in response from ${from} to ${to}`);
+                if (i < retries) {
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+                    continue;
+                }
+                return [];
+            }
+            
+            // Filter and process journeys
+            const filtered = data.journeys
+                .filter(journey => {
+                    // Must have legs
+                    if (!journey.legs || journey.legs.length === 0) return false;
+                    
+                    // Check if all legs use allowed transport types
+                    return journey.legs.every(leg => {
+                        if (leg.walking) return true; // Walking is OK
+                        if (!leg.line || !leg.line.product) return false;
+                        return ALLOWED_PRODUCTS.includes(leg.line.product);
+                    });
                 });
-            })
-            .map(journey => ({
+            
+            console.log(`Found ${filtered.length} valid journeys from ${from} to ${to}`);
+            
+            return filtered.map(journey => ({
                 departure: journey.legs[0].departure,
                 arrival: journey.legs[journey.legs.length - 1].arrival,
                 duration: calculateDuration(journey.legs[0].departure, journey.legs[journey.legs.length - 1].arrival),
@@ -180,10 +200,16 @@ async function fetchJourneys(from, to) {
                     delay: leg.departureDelay
                 }))
             }));
-    } catch (error) {
-        console.error('API Error:', error);
-        throw error;
+            
+        } catch (error) {
+            console.error(`API Error (attempt ${i + 1}/${retries + 1}):`, error);
+            if (i < retries) {
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait before retry
+            }
+        }
     }
+    
+    return []; // Return empty array if all retries failed
 }
 
 // Calculate duration in minutes
