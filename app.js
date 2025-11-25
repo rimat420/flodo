@@ -188,6 +188,13 @@ async function fetchJourneys(from, to, retries = 2) {
             .replace(/\s+/g, " ")
             .trim();
 
+            const cleanLineName = (s) =>
+            s
+            ?.replace(/\(\s*Train-No\.\s*/i, "(")  // "Train-No." am Klammeranfang entfernen
+            .replace(/\s*\)/, ")")                // überflüssige Leerzeichen vor ")" entfernen
+            .trim();
+
+
             return filtered.map(journey => {
                 // Log first leg to check available data
                 if (filtered.length > 0 && journey === filtered[0]) {
@@ -207,7 +214,7 @@ async function fetchJourneys(from, to, retries = 2) {
                         departure: leg.departure,
                         arrival: leg.arrival,
                         line: leg.line ? {
-                            name: leg.line.name,
+                            name: cleanLineName(leg.line.name),
                             product: leg.line.product,
                             direction: leg.direction
                         } : null,
