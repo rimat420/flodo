@@ -190,9 +190,9 @@ async function fetchJourneys(from, to, retries = 2) {
 
             const cleanLineName = (s) =>
             s
-            ?.replace(/\(\s*Train-No\.\s*/i, "(")  // "Train-No." am Klammeranfang entfernen
-            .replace(/\s*\)/, ")")                // überflüssige Leerzeichen vor ")" entfernen
+            ?.replace(/\s*\(.*/, "")   // alles ab erster Klammer entfernen
             .trim();
+
 
 
             return filtered.map(journey => {
