@@ -95,7 +95,7 @@ h1 {
 .train-line {
     flex: 1;
     text-align: center;
-    font-size: 14px;
+    font-size: 20px;
 }
 
 .train-direction {
@@ -227,21 +227,21 @@ h1 {
     }
     
     .train-direction {
-        font-size: 14px;
+        font-size: 16px;
     }
     
     .train-type {
-        font-size: 14px;
+        font-size: 16px;
         padding: 3px 10px;
     }
     
     .platform,
     .arrival-time {
-        font-size: 16px;
+        font-size: 18px;
     }
     
     .transfers {
-        font-size: 14px;
+        font-size: 16px;
     }
     
     .update-info {
