@@ -260,6 +260,9 @@ function createConnectionElement(connection) {
     const delay = firstLeg.delay ? Math.round(firstLeg.delay / 60) : 0;
     const delayText = delay > 0 ? `<span class="delay">+${delay}</span>` : '';
     
+    // Get train direction (end destination)
+    const trainDirection = firstLeg.direction || firstLeg.line?.direction || 'Unbekannt';
+    
     // Build arrival times HTML with correct chronological order
     let arrivalTimesHTML = '';
     
@@ -281,23 +284,19 @@ function createConnectionElement(connection) {
         }
     }
     
-    // Calculate duration (always to final destination)
-    const finalArrival = connection.wienMitteArrival || connection.floridsdorfArrival || connection.arrival;
-    const duration = calculateDuration(connection.departure, finalArrival);
-    
     div.innerHTML = `
         <div class="connection-header">
-            <div>
-                <span class="departure-time">${formatTime(depTime)}</span>
+            <div class="departure-time">
+                ${formatTime(depTime)}
                 ${delayText}
             </div>
-            <div class="duration">${duration} Min.</div>
+            <div class="train-line">
+                <span class="train-type ${getProductClass(firstLeg.line.product)}">${firstLeg.line.name}</span>
+            </div>
+            <div class="train-direction">${trainDirection}</div>
         </div>
         <div class="connection-details">
-            <div class="train-info">
-                <span class="train-type ${getProductClass(firstLeg.line.product)}">${firstLeg.line.name}</span>
-                <span class="platform">Gleis ${firstLeg.platform || '?'}</span>
-            </div>
+            <div class="platform">Gleis ${firstLeg.platform || '?'}</div>
             ${arrivalTimesHTML}
             ${connection.transfers > 0 ? `<div class="transfers">${connection.transfers} Umstieg${connection.transfers > 1 ? 'e' : ''}</div>` : ''}
         </div>

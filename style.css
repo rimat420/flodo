@@ -81,11 +81,30 @@ h1 {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 10px;
+    gap: 10px;
 }
 
 .departure-time {
     font-size: 20px;
     font-weight: 600;
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+}
+
+.train-line {
+    flex: 0 0 auto;
+    text-align: center;
+}
+
+.train-direction {
+    flex: 1;
+    text-align: right;
+    font-size: 14px;
+    color: #aaa;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .delay {
@@ -103,6 +122,11 @@ h1 {
     display: flex;
     flex-direction: column;
     gap: 5px;
+}
+
+.platform {
+    color: #888;
+    font-size: 14px;
 }
 
 .train-info {
@@ -201,8 +225,8 @@ h1 {
         font-size: 26px;
     }
     
-    .duration {
-        font-size: 16px;
+    .train-direction {
+        font-size: 14px;
     }
     
     .train-type {
@@ -212,7 +236,7 @@ h1 {
     
     .platform,
     .arrival-time {
-        font-size: 20px;
+        font-size: 16px;
     }
     
     .transfers {
