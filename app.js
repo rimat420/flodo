@@ -183,23 +183,36 @@ async function fetchJourneys(from, to, retries = 2) {
             
             console.log(`Found ${filtered.length} valid journeys from ${from} to ${to}`);
             
-            return filtered.map(journey => ({
-                departure: journey.legs[0].departure,
-                arrival: journey.legs[journey.legs.length - 1].arrival,
-                duration: calculateDuration(journey.legs[0].departure, journey.legs[journey.legs.length - 1].arrival),
-                transfers: journey.legs.length - 1,
-                legs: journey.legs.map(leg => ({
-                    departure: leg.departure,
-                    arrival: leg.arrival,
-                    line: leg.line ? {
-                        name: leg.line.name,
-                        product: leg.line.product,
-                        direction: leg.direction
-                    } : null,
-                    platform: leg.departurePlatform,
-                    delay: leg.departureDelay
-                }))
-            }));
+            return filtered.map(journey => {
+                // Log first leg to check available data
+                if (filtered.length > 0 && journey === filtered[0]) {
+                    console.log('Journey details:', {
+                        line: journey.legs[0].line,
+                        direction: journey.legs[0].direction,
+                        destination: journey.legs[0].destination
+                    });
+                }
+                
+                return {
+                    departure: journey.legs[0].departure,
+                    arrival: journey.legs[journey.legs.length - 1].arrival,
+                    duration: calculateDuration(journey.legs[0].departure, journey.legs[journey.legs.length - 1].arrival),
+                    transfers: journey.legs.length - 1,
+                    legs: journey.legs.map(leg => ({
+                        departure: leg.departure,
+                        arrival: leg.arrival,
+                        line: leg.line ? {
+                            name: leg.line.name,
+                            product: leg.line.product,
+                            direction: leg.direction
+                        } : null,
+                        platform: leg.departurePlatform,
+                        delay: leg.departureDelay,
+                        direction: leg.direction, // Add direction field
+                        destination: leg.destination // Add destination field
+                    }))
+                };
+            });
             
         } catch (error) {
             console.error(`API Error (attempt ${i + 1}/${retries + 1}):`, error);
