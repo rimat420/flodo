@@ -183,6 +183,11 @@ async function fetchJourneys(from, to, retries = 2) {
             
             console.log(`Found ${filtered.length} valid journeys from ${from} to ${to}`);
             
+            const clean = (s) => s
+            ?.replace(/\b(bahnhof|station|hbf)\b/gi, "")
+            .replace(/\s+/g, " ")
+            .trim();
+
             return filtered.map(journey => {
                 // Log first leg to check available data
                 if (filtered.length > 0 && journey === filtered[0]) {
@@ -208,7 +213,7 @@ async function fetchJourneys(from, to, retries = 2) {
                         } : null,
                         platform: leg.departurePlatform,
                         delay: leg.departureDelay,
-                        direction: leg.direction, // Add direction field
+                        direction: clean(leg.direction), // Add direction field
                         destination: leg.destination // Add destination field
                     }))
                 };
