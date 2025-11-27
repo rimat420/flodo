@@ -150,47 +150,6 @@ h1 {
 .train-type.rex { background: #cc0000; }
 .train-type.ubahn { background: #ff6600; }
 
-/* U-Bahn line colors */
-.ubahn-line {
-    display: inline-block;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-weight: 600;
-    font-size: 12px;
-    margin-right: 5px;
-    color: #fff;
-}
-
-.ubahn-line.u1, .u1 { background: #e20a16; }
-.ubahn-line.u4, .u4 { background: #00963f; }
-.ubahn-line.u6, .u6 { background: #9c6830; }
-
-/* U-Bahn connection info */
-.ubahn-info {
-    background: #2a2a2a;
-    border: 1px solid #444;
-    border-radius: 8px;
-    padding: 10px;
-    margin-top: 10px;
-    font-size: 14px;
-}
-
-.ubahn-direct {
-    border-color: #555;
-    background: #1f1f1f;
-}
-
-.transfer-station {
-    margin: 10px 0;
-}
-
-.arrival-detail {
-    display: block;
-    color: #aaa;
-    font-size: 12px;
-    margin-top: 5px;
-}
-
 .platform {
     color: #888;
     font-size: 14px;
@@ -301,16 +260,6 @@ h1 {
         color: #fff !important;
     }
     
-    .ubahn-direct {
-        background: #1f1f1f !important;
-        border-color: #555 !important;
-    }
-    
-    .ubahn-info {
-        background: #2a2a2a !important;
-        border-color: #444 !important;
-    }
-    
     .train-type {
         background: #333 !important;
         color: #fff !important;
@@ -319,10 +268,6 @@ h1 {
     .train-type.sbahn { background: #0066cc !important; }
     .train-type.rex { background: #cc0000 !important; }
     .train-type.ubahn { background: #ff6600 !important; }
-    
-    .ubahn-line.u1, .u1 { background: #e20a16 !important; }
-    .ubahn-line.u4, .u4 { background: #00963f !important; }
-    .ubahn-line.u6, .u6 { background: #9c6830 !important; }
     
     .error {
         background: #330000 !important;
