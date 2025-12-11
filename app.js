@@ -2,30 +2,11 @@
 const API = "https://oebb.macistry.com/api";
 const STATIONS = {
     FLORIDSDORF: "1192101",
-    WIEN_MITTE: "1290302",
-    PRATERSTERN: "1290201"
+    WIEN_MITTE: "1290302"
 };
 
-// Wiener Linien station IDs (diva codes)
-const WL_STATIONS = {
-    FLORIDSDORF_U6: "60200334",
-    SPITTELAU_U4: "60200230",
-    SPITTELAU_U6: "60200657",
-    PRATERSTERN_U1: "60200040",
-    WIEN_MITTE_U4: "60200078",
-    KARLSPLATZ_U4: "60200068",
-    KARLSPLATZ_U1: "60200141"
-};
-
-// Allowed transport types (S-Bahn, REX, U-Bahn only)
-const ALLOWED_PRODUCTS = ['suburban', 'regional', 'subway'];
-
-// U-Bahn line configurations
-const UBAHN_LINES = {
-    U1: { color: '#e20a16', directions: { praterstern: 'Oberlaa', karlsplatz: 'Leopoldau' }},
-    U4: { color: '#00963f', directions: { spittelau: 'Hütteldorf', karlsplatz: 'Heiligenstadt' }},
-    U6: { color: '#9c6830', directions: { floridsdorf: 'Siebenhirten', spittelau: 'Floridsdorf' }}
-};
+// Allowed transport types (S-Bahn, REX only)
+const ALLOWED_PRODUCTS = ['suburban', 'regional'];
 
 // App state
 let currentDirection = 'forward';
@@ -72,9 +53,9 @@ function switchDirection() {
 function updateDirectionDisplay() {
     const directionText = document.querySelector('.direction-text');
     if (currentDirection === 'forward') {
-        directionText.textContent = 'Floridsdorf → Karlsplatz';
+        directionText.textContent = 'Floridsdorf → Wien Mitte';
     } else {
-        directionText.textContent = 'Karlsplatz → Floridsdorf';
+        directionText.textContent = 'Wien Mitte → Floridsdorf';
     }
 }
 
@@ -94,310 +75,33 @@ async function loadConnections() {
     }
 }
 
-// Fetch U-Bahn departures from Wiener Linien
-async function fetchUBahnDepartures(stationId, lineId, towards, afterTime = null) {
-    // For now, we'll use simulated data based on typical intervals
-    // U1: 3-5 min intervals
-    // U4: 5-7 min intervals  
-    // U6: 5-10 min intervals
-    
-    console.log(`Fetching U-Bahn data for ${lineId} at station ${stationId} towards ${towards}${afterTime ? ' after ' + afterTime : ''}`);
-    
-    const baseTime = afterTime ? new Date(afterTime) : new Date();
-    const intervals = {
-        'U1': [2, 5, 8],     // More frequent
-        'U4': [3, 6, 9],     // Medium frequency
-        'U6': [5, 10, 15]    // Less frequent
-    };
-    
-    const baseIntervals = intervals[lineId] || [5, 10, 15];
-    
-    // Generate departures AFTER the specified time
-    return baseIntervals.map((minutes, index) => {
-        const additionalWait = index === 0 ? 0 : Math.floor(Math.random() * 2); // 0-1 minute variance
-        const actualMinutes = minutes + additionalWait;
-        const departureTime = new Date(baseTime.getTime() + actualMinutes * 60000);
-        return formatTime(departureTime);
-    });
-}
-
-// Calculate U-Bahn travel times (rough estimates in minutes)
-const UBAHN_TRAVEL_TIMES = {
-    'floridsdorf-spittelau': 13,
-    'spittelau-karlsplatz': 10,
-    'praterstern-karlsplatz': 6,
-    'wienMitte-karlsplatz': 5
-};
-
-// Calculate U-Bahn arrival time (without transfer time)
-function calculateUBahnArrival(trainArrival, transferTime, travelTime) {
-    // trainArrival is when we arrive at the station
-    // transferTime is how long it takes to change platforms (used only to find next departure)
-    // travelTime is the actual U-Bahn travel time
-    
-    // Find the first U-Bahn departure after arrival + transfer
-    const readyToBoard = new Date(trainArrival);
-    readyToBoard.setMinutes(readyToBoard.getMinutes() + transferTime);
-    
-    // For simulation: assume we catch a U-Bahn shortly after being ready
-    // In reality, this would be based on actual departure times
-    const ubahnDeparture = new Date(readyToBoard.getTime() + 2 * 60000); // 2 min wait on average
-    
-    // Calculate actual arrival at destination
-    const arrival = new Date(ubahnDeparture.getTime() + travelTime * 60000);
-    return formatTime(arrival);
-}
-
 // Get connections from API
 async function getConnections(direction = 'forward') {
-    const connections = new Map(); // Use Map to group by train
-    
     try {
+        let connections;
+        
         if (direction === 'forward') {
-            // Forward: Floridsdorf → Karlsplatz
-            // Add small delay between API calls to avoid rate limiting
-            const mitteConnections = await fetchJourneys(STATIONS.FLORIDSDORF, STATIONS.WIEN_MITTE);
-            await new Promise(resolve => setTimeout(resolve, 200)); // 200ms delay
-            const pratersternConnections = await fetchJourneys(STATIONS.FLORIDSDORF, STATIONS.PRATERSTERN);
-            
-            // Use Wien Mitte connections as base
-            for (const conn of mitteConnections) {
-                const key = `${conn.departure}_${conn.legs[0].line?.name || ''}`;
-                
-                // Calculate when passenger can realistically catch U-Bahn (arrival + 3 min transfer)
-                const wienMitteTransferReady = new Date(new Date(conn.arrival).getTime() + 3 * 60000);
-                
-                // Fetch U-Bahn departures AFTER the transfer time
-                const u4WienMitte = await fetchUBahnDepartures(
-                    WL_STATIONS.WIEN_MITTE_U4, 
-                    'U4', 
-                    'Hütteldorf',
-                    wienMitteTransferReady
-                );
-                
-                // Calculate Karlsplatz arrival time based on first available U4
-                let karlsplatzArrivalU4 = null;
-                if (u4WienMitte.length > 0) {
-                    const [hours, minutes] = u4WienMitte[0].split(':').map(n => parseInt(n));
-                    const u4Departure = new Date(wienMitteTransferReady);
-                    u4Departure.setHours(hours, minutes, 0, 0);
-                    if (u4Departure < wienMitteTransferReady) {
-                        u4Departure.setDate(u4Departure.getDate() + 1);
-                    }
-                    const u4Arrival = new Date(u4Departure.getTime() + UBAHN_TRAVEL_TIMES['wienMitte-karlsplatz'] * 60000);
-                    karlsplatzArrivalU4 = formatTime(u4Arrival);
-                }
-                
-                connections.set(key, {
-                    ...conn,
-                    wienMitteArrival: conn.arrival,
-                    pratersternArrival: null,
-                    ubahnConnections: {
-                        wienMitte: {
-                            arrival: conn.arrival,
-                            nextU4: u4WienMitte,
-                            karlsplatzArrival: karlsplatzArrivalU4
-                        }
-                    }
-                });
-            }
-            
-            // Add Praterstern arrival times and U-Bahn connections
-            for (const conn of pratersternConnections) {
-                const key = `${conn.departure}_${conn.legs[0].line?.name || ''}`;
-                if (connections.has(key)) {
-                    const connection = connections.get(key);
-                    connection.pratersternArrival = conn.arrival;
-                    
-                    // Calculate when passenger can realistically catch U-Bahn (arrival + 3 min transfer)
-                    const pratersternTransferReady = new Date(new Date(conn.arrival).getTime() + 3 * 60000);
-                    
-                    // Fetch U-Bahn departures AFTER the transfer time
-                    const u1Praterstern = await fetchUBahnDepartures(
-                        WL_STATIONS.PRATERSTERN_U1,
-                        'U1',
-                        'Oberlaa',
-                        pratersternTransferReady
-                    );
-                    
-                    // Calculate Karlsplatz arrival time based on first available U1
-                    let karlsplatzArrivalU1 = null;
-                    if (u1Praterstern.length > 0) {
-                        const [hours, minutes] = u1Praterstern[0].split(':').map(n => parseInt(n));
-                        const u1Departure = new Date(pratersternTransferReady);
-                        u1Departure.setHours(hours, minutes, 0, 0);
-                        if (u1Departure < pratersternTransferReady) {
-                            u1Departure.setDate(u1Departure.getDate() + 1);
-                        }
-                        const u1Arrival = new Date(u1Departure.getTime() + UBAHN_TRAVEL_TIMES['praterstern-karlsplatz'] * 60000);
-                        karlsplatzArrivalU1 = formatTime(u1Arrival);
-                    }
-                    
-                    connection.ubahnConnections.praterstern = {
-                        arrival: conn.arrival,
-                        nextU1: u1Praterstern,
-                        karlsplatzArrival: karlsplatzArrivalU1
-                    };
-                }
-            }
-            
-            // Add direct U6 connection
-            // Get next U6 departure from Floridsdorf
-            const now = new Date();
-            const u6Floridsdorf = await fetchUBahnDepartures(WL_STATIONS.FLORIDSDORF_U6, 'U6', 'Siebenhirten', now);
-            
-            if (u6Floridsdorf.length > 0) {
-                // Parse the first U6 departure time
-                const [hours, minutes] = u6Floridsdorf[0].split(':').map(n => parseInt(n));
-                const u6Departure = new Date(now);
-                u6Departure.setHours(hours, minutes, 0, 0);
-                
-                // If time is in the past today, assume it's tomorrow
-                if (u6Departure < now) {
-                    u6Departure.setDate(u6Departure.getDate() + 1);
-                }
-                
-                // Calculate arrival at Spittelau (13 minutes)
-                const spittelauArrival = new Date(u6Departure.getTime() + UBAHN_TRAVEL_TIMES['floridsdorf-spittelau'] * 60000);
-                const spittelauTransferReady = new Date(spittelauArrival.getTime() + 3 * 60000);
-                
-                // Get U4 connections from Spittelau AFTER arrival + transfer time
-                const u4Spittelau = await fetchUBahnDepartures(
-                    WL_STATIONS.SPITTELAU_U4,
-                    'U4',
-                    'Hütteldorf',
-                    spittelauTransferReady
-                );
-                
-                // Calculate Karlsplatz arrival based on first available U4
-                let karlsplatzArrivalFromSpittelau = null;
-                if (u4Spittelau.length > 0) {
-                    const [hours, minutes] = u4Spittelau[0].split(':').map(n => parseInt(n));
-                    const u4Departure = new Date(spittelauTransferReady);
-                    u4Departure.setHours(hours, minutes, 0, 0);
-                    if (u4Departure < spittelauTransferReady) {
-                        u4Departure.setDate(u4Departure.getDate() + 1);
-                    }
-                    const u4Arrival = new Date(u4Departure.getTime() + UBAHN_TRAVEL_TIMES['spittelau-karlsplatz'] * 60000);
-                    karlsplatzArrivalFromSpittelau = formatTime(u4Arrival);
-                }
-                
-                const u6Connection = {
-                    departure: u6Departure.toISOString(),
-                    arrival: spittelauArrival.toISOString(),
-                    duration: Math.round((new Date(u4Spittelau[0] ? 
-                        new Date(u6Departure.getFullYear(), u6Departure.getMonth(), u6Departure.getDate(),
-                            ...u4Spittelau[0].split(':').map(n => parseInt(n))).getTime() + 
-                            UBAHN_TRAVEL_TIMES['spittelau-karlsplatz'] * 60000 : 
-                        spittelauArrival.getTime() + 3 * 60000 + UBAHN_TRAVEL_TIMES['spittelau-karlsplatz'] * 60000) 
-                        - u6Departure.getTime()) / 60000),
-                    transfers: 1,
-                    isUBahn: true,
-                    legs: [{
-                        departure: u6Departure.toISOString(),
-                        arrival: spittelauArrival.toISOString(),
-                        line: { name: 'U6', product: 'subway' },
-                        platform: null,
-                        delay: 0,
-                        direction: 'Siebenhirten'
-                    }],
-                    ubahnConnections: {
-                        spittelau: {
-                            arrival: spittelauArrival.toISOString(),
-                            nextU4: u4Spittelau,
-                            karlsplatzArrival: karlsplatzArrivalFromSpittelau
-                        }
-                    }
-                };
-                
-                connections.set(`u6_direct_${u6Departure.getTime()}`, u6Connection);
-            }
-            
+            // Forward: Floridsdorf → Wien Mitte
+            connections = await fetchJourneys(STATIONS.FLORIDSDORF, STATIONS.WIEN_MITTE);
         } else {
-            // Reverse: Karlsplatz → Floridsdorf
-            const floridsdorfConnections = await fetchJourneys(STATIONS.WIEN_MITTE, STATIONS.FLORIDSDORF);
-            await new Promise(resolve => setTimeout(resolve, 200)); // 200ms delay
-            const pratersternConnections = await fetchJourneys(STATIONS.WIEN_MITTE, STATIONS.PRATERSTERN);
-            
-            // Fetch U-Bahn departures for reverse direction
-            const [u4Karlsplatz, u1Karlsplatz, u6Spittelau] = await Promise.all([
-                fetchUBahnDepartures(WL_STATIONS.KARLSPLATZ_U4, 'U4', 'Heiligenstadt'),
-                fetchUBahnDepartures(WL_STATIONS.KARLSPLATZ_U1, 'U1', 'Leopoldau'),
-                fetchUBahnDepartures(WL_STATIONS.SPITTELAU_U6, 'U6', 'Floridsdorf')
-            ]);
-            
-            // Use Floridsdorf connections as base
-            floridsdorfConnections.forEach(conn => {
-                const key = `${conn.departure}_${conn.legs[0].line?.name || ''}`;
-                connections.set(key, {
-                    ...conn,
-                    floridsdorfArrival: conn.arrival,
-                    pratersternArrival: null,
-                    ubahnConnections: {
-                        karlsplatzU4: u4Karlsplatz.slice(0, 3), // Next 3 U4 departures from Karlsplatz
-                        karlsplatzU1: u1Karlsplatz.slice(0, 3)  // Next 3 U1 departures from Karlsplatz
-                    }
-                });
-            });
-            
-            // Add Praterstern arrival times
-            pratersternConnections.forEach(conn => {
-                const key = `${conn.departure}_${conn.legs[0].line?.name || ''}`;
-                if (connections.has(key)) {
-                    connections.get(key).pratersternArrival = conn.arrival;
-                }
-            });
-            
-            // Add direct U4->U6 connection from Karlsplatz
-            // Always add at least one U4 connection
-            const now = new Date();
-            const minutesToNextU4 = 5 + Math.floor(Math.random() * 5); // 5-10 minutes
-            const u4Departure = new Date(now.getTime() + minutesToNextU4 * 60000);
-            
-            const spittelauArrival = new Date(u4Departure.getTime() + UBAHN_TRAVEL_TIMES['spittelau-karlsplatz'] * 60000);
-            
-            const u4U6Connection = {
-                departure: u4Departure.toISOString(),
-                arrival: spittelauArrival.toISOString(),
-                duration: UBAHN_TRAVEL_TIMES['spittelau-karlsplatz'] + 5 + UBAHN_TRAVEL_TIMES['floridsdorf-spittelau'],
-                transfers: 1,
-                isUBahn: true,
-                legs: [{
-                    departure: u4Departure.toISOString(),
-                    arrival: spittelauArrival.toISOString(),
-                    line: { name: 'U4', product: 'subway' },
-                    platform: null,
-                    delay: 0,
-                    direction: 'Heiligenstadt'
-                }],
-                ubahnConnections: {
-                    spittelau: {
-                        arrival: spittelauArrival.toISOString(),
-                        nextU6: u6Spittelau,
-                        floridsdorfArrival: calculateUBahnArrival(spittelauArrival.toISOString(), 5, UBAHN_TRAVEL_TIMES['floridsdorf-spittelau'])
-                    }
-                }
-            };
-            
-            connections.set(`u4_direct_${u4Departure.getTime()}`, u4U6Connection);
+            // Reverse: Wien Mitte → Floridsdorf
+            connections = await fetchJourneys(STATIONS.WIEN_MITTE, STATIONS.FLORIDSDORF);
         }
         
         // Log what we found
-        console.log(`Direction: ${direction}, found ${connections.size} connections`);
+        console.log(`Direction: ${direction}, found ${connections.length} connections`);
+        
+        return connections;
         
     } catch (error) {
         console.error('Error fetching connections:', error);
+        return [];
     }
-    
-    // Convert Map to array, sort by departure time and return top 6
-    return Array.from(connections.values())
-        .sort((a, b) => new Date(a.departure) - new Date(b.departure))
-        .slice(0, 6);
 }
 
 // Fetch journeys from API with retry logic
 async function fetchJourneys(from, to, retries = 2) {
-    const url = `${API}/journeys?from=${from}&to=${to}&results=5&suburban=true&regional=true&subway=true&bus=false&tram=false`;
+    const url = `${API}/journeys?from=${from}&to=${to}&results=5&suburban=true&regional=true&subway=false&bus=false&tram=false`;
     
     for (let i = 0; i <= retries; i++) {
         try {
@@ -435,16 +139,12 @@ async function fetchJourneys(from, to, retries = 2) {
             console.log(`Found ${filtered.length} valid journeys from ${from} to ${to}`);
             
             const clean = (s) => s
-            ?.replace(/\b(bahnhof|station|Wien|hbf)\b/gi, "")
-            .replace(/\s+/g, " ")
-            .trim();
+                ?.replace(/\b(bahnhof|station|Wien|hbf)\b/gi, "")
+                .replace(/\s+/g, " ")
+                .trim();
 
             const cleanLineName = (s) =>
-            s
-            ?.replace(/\s*\(.*/, "")   // alles ab erster Klammer entfernen
-            .trim();
-
-
+                s?.replace(/\s*\(.*/, "").trim();
 
             return filtered.map(journey => {
                 // Log first leg to check available data
@@ -517,107 +217,15 @@ function createConnectionElement(connection) {
     div.className = 'connection';
     
     const depTime = new Date(connection.departure);
+    const arrTime = new Date(connection.arrival);
     const firstLeg = connection.legs[0];
-    
-    // Handle U-Bahn direct connections differently
-    if (connection.isUBahn) {
-        return createUBahnConnectionElement(connection);
-    }
     
     // Get delay info
     const delay = firstLeg.delay ? Math.round(firstLeg.delay / 60) : 0;
     const delayText = delay > 0 ? `<span class="delay">+${delay}</span>` : '';
     
     // Get train direction (end destination)
-    const trainDirection = firstLeg.direction || firstLeg.line?.direction || 'Unbekannt';
-    
-    // Build arrival times HTML with correct chronological order
-    let arrivalTimesHTML = '';
-    
-    if (currentDirection === 'forward') {
-        // Forward: Floridsdorf → Praterstern → Wien Mitte
-        if (connection.pratersternArrival) {
-            arrivalTimesHTML += `<div class="arrival-time">Praterstern: ${formatTime(new Date(connection.pratersternArrival))}</div>`;
-        }
-        if (connection.wienMitteArrival) {
-            arrivalTimesHTML += `<div class="arrival-time">Wien Mitte: ${formatTime(new Date(connection.wienMitteArrival))}</div>`;
-        }
-    } else {
-        // Reverse: Wien Mitte → Praterstern → Floridsdorf
-        if (connection.pratersternArrival) {
-            arrivalTimesHTML += `<div class="arrival-time">Praterstern: ${formatTime(new Date(connection.pratersternArrival))}</div>`;
-        }
-        if (connection.floridsdorfArrival) {
-            arrivalTimesHTML += `<div class="arrival-time">Floridsdorf: ${formatTime(new Date(connection.floridsdorfArrival))}</div>`;
-        }
-    }
-    
-    // Build U-Bahn connections HTML
-    let ubahnHTML = '';
-    if (connection.ubahnConnections) {
-        if (currentDirection === 'forward') {
-            // Forward direction: show U-Bahn connections to Karlsplatz
-            if (connection.ubahnConnections.praterstern && connection.ubahnConnections.praterstern.nextU1.length > 0) {
-                const pratersternArrival = new Date(connection.pratersternArrival);
-                const karlsplatzTime = connection.ubahnConnections.praterstern.karlsplatzArrival;
-                let totalDurationU1 = '';
-                
-                if (karlsplatzTime) {
-                    // Parse arrival time and calculate duration
-                    const [kHours, kMinutes] = karlsplatzTime.split(':').map(n => parseInt(n));
-                    const karlsplatzArrival = new Date(pratersternArrival);
-                    karlsplatzArrival.setHours(kHours, kMinutes, 0, 0);
-                    if (karlsplatzArrival < pratersternArrival) {
-                        karlsplatzArrival.setDate(karlsplatzArrival.getDate() + 1);
-                    }
-                    const durationFromDeparture = Math.round((karlsplatzArrival - new Date(connection.departure)) / 60000);
-                    totalDurationU1 = ` (Gesamt: ${durationFromDeparture} Min)`;
-                }
-                
-                ubahnHTML += `
-                    <div class="ubahn-info">
-                        <span class="ubahn-line u1">U1</span> ab Praterstern: ${connection.ubahnConnections.praterstern.nextU1.join(', ')}
-                        <span class="arrival-detail">→ Karlsplatz ${karlsplatzTime}${totalDurationU1}</span>
-                    </div>
-                `;
-            }
-            if (connection.ubahnConnections.wienMitte && connection.ubahnConnections.wienMitte.nextU4.length > 0) {
-                const wienMitteArrival = new Date(connection.wienMitteArrival);
-                const karlsplatzTime = connection.ubahnConnections.wienMitte.karlsplatzArrival;
-                let totalDurationU4 = '';
-                
-                if (karlsplatzTime) {
-                    // Parse arrival time and calculate duration
-                    const [kHours, kMinutes] = karlsplatzTime.split(':').map(n => parseInt(n));
-                    const karlsplatzArrival = new Date(wienMitteArrival);
-                    karlsplatzArrival.setHours(kHours, kMinutes, 0, 0);
-                    if (karlsplatzArrival < wienMitteArrival) {
-                        karlsplatzArrival.setDate(karlsplatzArrival.getDate() + 1);
-                    }
-                    const durationFromDeparture = Math.round((karlsplatzArrival - new Date(connection.departure)) / 60000);
-                    totalDurationU4 = ` (Gesamt: ${durationFromDeparture} Min)`;
-                }
-                
-                ubahnHTML += `
-                    <div class="ubahn-info">
-                        <span class="ubahn-line u4">U4</span> ab Wien Mitte: ${connection.ubahnConnections.wienMitte.nextU4.join(', ')}
-                        <span class="arrival-detail">→ Karlsplatz ${karlsplatzTime}${totalDurationU4}</span>
-                    </div>
-                `;
-            }
-        } else {
-            // Reverse direction: show U-Bahn options from Karlsplatz
-            if (connection.ubahnConnections.karlsplatzU4 && connection.ubahnConnections.karlsplatzU4.length > 0) {
-                ubahnHTML += `
-                    <div class="ubahn-info">
-                        Start ab Karlsplatz:
-                        <br><span class="ubahn-line u4">U4</span> ${connection.ubahnConnections.karlsplatzU4.join(', ')}
-                        <br><span class="ubahn-line u1">U1</span> ${connection.ubahnConnections.karlsplatzU1.join(', ')}
-                    </div>
-                `;
-            }
-        }
-    }
+    const trainDirection = firstLeg.direction || firstLeg.line?.direction || '';
     
     div.innerHTML = `
         <div class="connection-header">
@@ -632,66 +240,8 @@ function createConnectionElement(connection) {
         </div>
         <div class="connection-details">
             <div class="platform">Gleis ${firstLeg.platform || '?'}</div>
-            ${arrivalTimesHTML}
-            ${ubahnHTML}
+            <div class="arrival-time">Ankunft: ${formatTime(arrTime)}</div>
             ${connection.transfers > 0 ? `<div class="transfers">${connection.transfers} Umstieg${connection.transfers > 1 ? 'e' : ''}</div>` : ''}
-        </div>
-    `;
-    
-    return div;
-}
-
-// Create U-Bahn connection element (for direct U6/U4 routes)
-function createUBahnConnectionElement(connection) {
-    const div = document.createElement('div');
-    div.className = 'connection ubahn-direct';
-    
-    const depTime = new Date(connection.departure);
-    const firstLeg = connection.legs[0];
-    const lineName = firstLeg.line.name;
-    
-    let transferInfo = '';
-    let finalDestination = '';
-    
-    if (currentDirection === 'forward') {
-        // U6 from Floridsdorf
-        const spittelauInfo = connection.ubahnConnections.spittelau;
-        transferInfo = `
-            <div class="transfer-station">
-                <div>Spittelau: ${formatTime(new Date(spittelauInfo.arrival))}</div>
-                <div class="ubahn-info">
-                    <span class="ubahn-line u4">U4</span> ${spittelauInfo.nextU4.join(', ')}
-                    <span class="arrival-detail">→ Karlsplatz ${spittelauInfo.karlsplatzArrival}</span>
-                </div>
-            </div>
-        `;
-        finalDestination = `Gesamtdauer: ${connection.duration} Min`;
-    } else {
-        // U4 from Karlsplatz
-        const spittelauInfo = connection.ubahnConnections.spittelau;
-        transferInfo = `
-            <div class="transfer-station">
-                <div>Spittelau: ${formatTime(new Date(spittelauInfo.arrival))}</div>
-                <div class="ubahn-info">
-                    <span class="ubahn-line u6">U6</span> ${spittelauInfo.nextU6.join(', ')}
-                    <span class="arrival-detail">→ Floridsdorf ${spittelauInfo.floridsdorfArrival}</span>
-                </div>
-            </div>
-        `;
-        finalDestination = `Gesamtdauer: ${connection.duration} Min`;
-    }
-    
-    div.innerHTML = `
-        <div class="connection-header">
-            <div class="departure-time">${formatTime(depTime)}</div>
-            <div class="train-line">
-                <span class="train-type ubahn-line ${lineName.toLowerCase()}">${lineName}</span>
-            </div>
-            <div class="train-direction">${firstLeg.direction}</div>
-        </div>
-        <div class="connection-details">
-            ${transferInfo}
-            <div class="duration">${finalDestination}</div>
         </div>
     `;
     
@@ -703,7 +253,6 @@ function getProductClass(product) {
     switch(product) {
         case 'suburban': return 'sbahn';
         case 'regional': return 'rex';
-        case 'subway': return 'ubahn';
         default: return '';
     }
 }
