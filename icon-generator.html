@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Icon Generator</title>
+</head>
+<body>
+    <h2>Bahn Widget Icons</h2>
+    <p>Rechtsklick → "Bild speichern unter" für jedes Icon:</p>
+    
+    <!-- 192x192 Icon -->
+    <h3>icon-192.png (192x192)</h3>
+    <canvas id="canvas192" width="192" height="192"></canvas>
+    
+    <!-- 512x512 Icon -->
+    <h3>icon-512.png (512x512)</h3>
+    <canvas id="canvas512" width="512" height="512"></canvas>
+    
+    <script>
+        function drawIcon(canvasId, size) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            
+            // Background
+            ctx.fillStyle = '#0066cc';
+            ctx.fillRect(0, 0, size, size);
+            
+            // White rounded rect
+            const margin = size * 0.15;
+            const rectSize = size - (margin * 2);
+            const radius = size * 0.1;
+            
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.moveTo(margin + radius, margin);
+            ctx.lineTo(margin + rectSize - radius, margin);
+            ctx.arc(margin + rectSize - radius, margin + radius, radius, -Math.PI/2, 0);
+            ctx.lineTo(margin + rectSize, margin + rectSize - radius);
+            ctx.arc(margin + rectSize - radius, margin + rectSize - radius, radius, 0, Math.PI/2);
+            ctx.lineTo(margin + radius, margin + rectSize);
+            ctx.arc(margin + radius, margin + rectSize - radius, radius, Math.PI/2, Math.PI);
+            ctx.lineTo(margin, margin + radius);
+            ctx.arc(margin + radius, margin + radius, radius, Math.PI, Math.PI * 1.5);
+            ctx.fill();
+            
+            // Text "S"
+            ctx.fillStyle = '#0066cc';
+            ctx.font = `bold ${size * 0.4}px -apple-system, Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('S', size/2, size/2);
+            
+            // Convert to downloadable link
+            canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `icon-${size}.png`;
+                link.innerHTML = `<img src="${url}" style="border: 1px solid #ccc;">`;
+                canvas.parentNode.insertBefore(link, canvas.nextSibling);
+                canvas.style.display = 'none';
+            });
+        }
+        
+        // Generate icons
+        drawIcon('canvas192', 192);
+        drawIcon('canvas512', 512);
+    </script>
+</body>
+</html>
