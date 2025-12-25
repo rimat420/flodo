@@ -87,14 +87,61 @@ async function loadConnections() {
     
     try {
         const connections = await getConnections();
-        displayConnections(connections);
-        updateLastUpdateTime();
-        hideError();
+        
+        if (connections.length > 0) {
+            displayConnections(connections);
+            updateLastUpdateTime();
+            hideError();
+            updateConnectionStatus('online');
+        } else {
+            // No connections found, but API worked
+            displayConnections([]);
+            updateLastUpdateTime();
+            updateConnectionStatus('online');
+            console.warn('No connections returned by API');
+        }
     } catch (error) {
+        console.error('LoadConnections error:', error);
         showError('Fehler beim Laden der Verbindungen: ' + error.message);
+        updateConnectionStatus('offline');
+        
+        // Show cached data if available
+        const cachedConnections = getCachedConnections();
+        if (cachedConnections.length > 0) {
+            displayConnections(cachedConnections);
+            showError('Offline - zeige gespeicherte Daten');
+        }
     } finally {
         showLoading(false);
     }
+}
+
+// Simple cache mechanism
+function cacheConnections(connections) {
+    try {
+        localStorage.setItem(`connections_${currentRoute}`, JSON.stringify({
+            data: connections,
+            timestamp: Date.now()
+        }));
+    } catch (e) {
+        console.error('Cache error:', e);
+    }
+}
+
+function getCachedConnections() {
+    try {
+        const cached = localStorage.getItem(`connections_${currentRoute}`);
+        if (cached) {
+            const { data, timestamp } = JSON.parse(cached);
+            // Use cache if less than 5 minutes old
+            if (Date.now() - timestamp < 5 * 60 * 1000) {
+                return data;
+            }
+        }
+    } catch (e) {
+        console.error('Cache retrieval error:', e);
+    }
+    return [];
 }
 
 // Get connections from API
@@ -120,24 +167,39 @@ async function getConnections() {
 async function fetchJourneys(from, to, retries = 2) {
     const url = `${API}/journeys?from=${from}&to=${to}&results=5&suburban=true&regional=true&subway=false&bus=false&tram=false`;
     
+    console.log(`Fetching journeys: ${from} -> ${to}`);
+    
     for (let i = 0; i <= retries; i++) {
         try {
             const response = await fetch(url);
+            
+            console.log(`API Response status: ${response.status}`);
+            
             if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`HTTP Error ${response.status}: ${errorText}`);
                 throw new Error(`HTTP ${response.status}`);
             }
             
             const data = await response.json();
             
+            console.log('API Response:', data);
+            
             // Check if we got valid data
             if (!data.journeys || !Array.isArray(data.journeys)) {
                 console.warn(`No journeys array in response from ${from} to ${to}`);
+                if (data.error) {
+                    console.error('API Error:', data.error);
+                }
                 if (i < retries) {
-                    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+                    console.log(`Retrying in 2 seconds... (attempt ${i + 1}/${retries + 1})`);
+                    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
                     continue;
                 }
                 return [];
             }
+            
+            console.log(`Raw journeys count: ${data.journeys.length}`);
             
             // Filter and process journeys
             const filtered = data.journeys
@@ -146,11 +208,17 @@ async function fetchJourneys(from, to, retries = 2) {
                     if (!journey.legs || journey.legs.length === 0) return false;
                     
                     // Check if all legs use allowed transport types
-                    return journey.legs.every(leg => {
+                    const isAllowed = journey.legs.every(leg => {
                         if (leg.walking) return true; // Walking is OK
                         if (!leg.line || !leg.line.product) return false;
                         return ALLOWED_PRODUCTS.includes(leg.line.product);
                     });
+                    
+                    if (!isAllowed && journey.legs[0]?.line) {
+                        console.log(`Filtered out: ${journey.legs[0].line.name} (${journey.legs[0].line.product})`);
+                    }
+                    
+                    return isAllowed;
                 });
             
             console.log(`Found ${filtered.length} valid journeys from ${from} to ${to}`);
@@ -163,7 +231,7 @@ async function fetchJourneys(from, to, retries = 2) {
             const cleanLineName = (s) =>
                 s?.replace(/\s*\(.*/, "").trim();
 
-            return filtered.map(journey => {
+            const processedJourneys = filtered.map(journey => {
                 return {
                     departure: journey.legs[0].departure,
                     arrival: journey.legs[journey.legs.length - 1].arrival,
@@ -185,10 +253,22 @@ async function fetchJourneys(from, to, retries = 2) {
                 };
             });
             
+            // Success - return the journeys
+            return processedJourneys;
+            
         } catch (error) {
             console.error(`API Error (attempt ${i + 1}/${retries + 1}):`, error);
+            
+            if (error.message.includes('fetch')) {
+                console.error('Network error - check internet connection');
+            }
+            
             if (i < retries) {
-                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait before retry
+                console.log(`Waiting 2 seconds before retry...`);
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait before retry
+            } else {
+                // Final attempt failed
+                console.error('All retry attempts failed');
             }
         }
     }
@@ -211,6 +291,11 @@ function displayConnections(connections) {
     if (connections.length === 0) {
         container.innerHTML = '<div class="no-connections">Keine Verbindungen gefunden</div>';
         return;
+    }
+    
+    // Cache successful connections
+    if (connections.length > 0) {
+        cacheConnections(connections);
     }
     
     connections.forEach(connection => {
@@ -293,13 +378,43 @@ function showLoading(show) {
 // Show error
 function showError(message) {
     const errorEl = document.getElementById('error');
-    errorEl.textContent = message;
+    const timestamp = new Date().toLocaleTimeString('de-AT');
+    errorEl.innerHTML = `
+        <div>${message}</div>
+        <div style="font-size: 12px; margin-top: 5px; color: #999;">
+            ${timestamp} - Bitte Browser-Konsole für Details prüfen
+        </div>
+    `;
     errorEl.classList.remove('hidden');
 }
 
 // Hide error
 function hideError() {
     document.getElementById('error').classList.add('hidden');
+}
+
+// Add connection status indicator
+function updateConnectionStatus(status) {
+    const container = document.querySelector('.container');
+    let statusEl = document.getElementById('connection-status');
+    
+    if (!statusEl) {
+        statusEl = document.createElement('div');
+        statusEl.id = 'connection-status';
+        statusEl.style.cssText = `
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: ${status === 'online' ? '#0f0' : '#f00'};
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        `;
+        container.appendChild(statusEl);
+    } else {
+        statusEl.style.background = status === 'online' ? '#0f0' : '#f00';
+    }
 }
 
 // Handle visibility change (for auto-refresh)
