@@ -29,11 +29,20 @@ document.addEventListener('DOMContentLoaded', () => {
     createRouteButtons();
     loadConnections();
     
-    // Auto-refresh every 90 seconds
-    updateInterval = setInterval(loadConnections, 90000);
+    // Auto-refresh every 3 minutes (instead of 90 seconds)
+    updateInterval = setInterval(loadConnections, 180000);
     
     // Event listeners
     document.getElementById('refresh').addEventListener('click', () => {
+        // Add cooldown to manual refresh
+        const refreshBtn = document.getElementById('refresh');
+        if (refreshBtn.disabled) return;
+        
+        refreshBtn.disabled = true;
+        setTimeout(() => {
+            refreshBtn.disabled = false;
+        }, 5000); // 5 second cooldown
+        
         loadConnections();
     });
 });
@@ -165,9 +174,11 @@ async function getConnections() {
 
 // Fetch journeys from API with retry logic
 async function fetchJourneys(from, to, retries = 2) {
-    const url = `${API}/journeys?from=${from}&to=${to}&results=5&suburban=true&regional=true&subway=false&bus=false&tram=false`;
+    // Simplified URL without potentially problematic parameters
+    const url = `${API}/journeys?from=${from}&to=${to}&results=5`;
     
     console.log(`Fetching journeys: ${from} -> ${to}`);
+    console.log(`URL: ${url}`);
     
     for (let i = 0; i <= retries; i++) {
         try {
@@ -178,6 +189,12 @@ async function fetchJourneys(from, to, retries = 2) {
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error(`HTTP Error ${response.status}: ${errorText}`);
+                
+                // If we get a 502 with ENUM error, it might be the product filters
+                if (response.status === 502 && errorText.includes('ENUM')) {
+                    console.warn('API ENUM error - trying without product filters');
+                }
+                
                 throw new Error(`HTTP ${response.status}`);
             }
             
@@ -201,30 +218,31 @@ async function fetchJourneys(from, to, retries = 2) {
             
             console.log(`Raw journeys count: ${data.journeys.length}`);
             
-            // Filter and process journeys
+            // Filter and process journeys - now done after API call
             const filtered = data.journeys
                 .filter(journey => {
                     // Must have legs
                     if (!journey.legs || journey.legs.length === 0) return false;
                     
-                    // Check if all legs use allowed transport types
-                    const isAllowed = journey.legs.every(leg => {
-                        if (leg.walking) return true; // Walking is OK
+                    // Filter for S-Bahn and Regional trains
+                    const hasValidTransport = journey.legs.some(leg => {
                         if (!leg.line || !leg.line.product) return false;
+                        // Check for S-Bahn or Regional trains
                         return ALLOWED_PRODUCTS.includes(leg.line.product);
                     });
                     
-                    if (!isAllowed && journey.legs[0]?.line) {
-                        console.log(`Filtered out: ${journey.legs[0].line.name} (${journey.legs[0].line.product})`);
-                    }
+                    // Also check that it's not just walking
+                    const hasPublicTransport = journey.legs.some(leg => 
+                        leg.line && leg.line.product
+                    );
                     
-                    return isAllowed;
+                    return hasValidTransport && hasPublicTransport;
                 });
             
-            console.log(`Found ${filtered.length} valid journeys from ${from} to ${to}`);
+            console.log(`Found ${filtered.length} valid journeys after filtering`);
             
             const clean = (s) => s
-                ?.replace(/\b(bahnhof|station|Wien|hbf|Bahnhst)\b/gi, "")
+                ?.replace(/\b(bahnhof|station|Wien|hbf)\b/gi, "")
                 .replace(/\s+/g, " ")
                 .trim();
 
@@ -232,6 +250,9 @@ async function fetchJourneys(from, to, retries = 2) {
                 s?.replace(/\s*\(.*/, "").trim();
 
             const processedJourneys = filtered.map(journey => {
+                // Find the main transport leg (not walking)
+                const mainLeg = journey.legs.find(leg => leg.line && leg.line.product) || journey.legs[0];
+                
                 return {
                     departure: journey.legs[0].departure,
                     arrival: journey.legs[journey.legs.length - 1].arrival,
@@ -245,7 +266,7 @@ async function fetchJourneys(from, to, retries = 2) {
                             product: leg.line.product,
                             direction: leg.direction
                         } : null,
-                        platform: leg.departurePlatform,
+                        platform: leg.departurePlatform || leg.platform,
                         delay: leg.departureDelay,
                         direction: clean(leg.direction),
                         destination: leg.destination
@@ -264,8 +285,8 @@ async function fetchJourneys(from, to, retries = 2) {
             }
             
             if (i < retries) {
-                console.log(`Waiting 2 seconds before retry...`);
-                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait before retry
+                console.log(`Waiting 3 seconds before retry...`);
+                await new Promise(resolve => setTimeout(resolve, 3000)); // Wait longer before retry
             } else {
                 // Final attempt failed
                 console.error('All retry attempts failed');
