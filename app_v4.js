@@ -2,31 +2,20 @@
 const API = "https://oebb.macistry.com/api";
 const STATIONS = {
     FLORIDSDORF: "1192101",
-    WIEN_MITTE: "1290302",
-    PRATERSTERN: "1290201",
-    TRAISENGASSE: "1292002"
-};
-
-// Route configurations
-const ROUTES = {
-    'f-m': { from: 'FLORIDSDORF', to: 'WIEN_MITTE', label: 'F → M' },
-    'm-f': { from: 'WIEN_MITTE', to: 'FLORIDSDORF', label: 'M → F' },
-    'p-f': { from: 'PRATERSTERN', to: 'FLORIDSDORF', label: 'P → F' },
-    't-f': { from: 'TRAISENGASSE', to: 'FLORIDSDORF', label: 'T → F' }
+    WIEN_MITTE: "1290302"
 };
 
 // Allowed transport types (S-Bahn, REX only)
 const ALLOWED_PRODUCTS = ['suburban', 'regional'];
 
 // App state
-let currentRoute = 'f-m';
+let currentDirection = 'forward';
 let lastUpdate = null;
 let updateInterval = null;
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
-    createRouteButtons();
     loadConnections();
     
     // Auto-refresh every 90 seconds
@@ -36,49 +25,38 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('refresh').addEventListener('click', () => {
         loadConnections();
     });
+    
+    document.getElementById('switchDirection').addEventListener('click', () => {
+        switchDirection();
+    });
 });
 
 // Initialize app settings
 function initializeApp() {
-    // Load saved route
-    const savedRoute = localStorage.getItem('route');
-    if (savedRoute && ROUTES[savedRoute]) {
-        currentRoute = savedRoute;
+    // Load saved direction
+    const savedDirection = localStorage.getItem('direction');
+    if (savedDirection) {
+        currentDirection = savedDirection;
     }
+    updateDirectionDisplay();
 }
 
-// Create route selection buttons
-function createRouteButtons() {
-    const container = document.querySelector('.route-buttons');
-    
-    Object.entries(ROUTES).forEach(([key, route]) => {
-        const button = document.createElement('button');
-        button.className = 'route-btn';
-        button.dataset.route = key;
-        button.textContent = route.label;
-        
-        if (key === currentRoute) {
-            button.classList.add('active');
-        }
-        
-        button.addEventListener('click', () => selectRoute(key));
-        container.appendChild(button);
-    });
-}
-
-// Select a route
-function selectRoute(routeKey) {
-    if (currentRoute === routeKey) return;
-    
-    currentRoute = routeKey;
-    localStorage.setItem('route', routeKey);
-    
-    // Update button states
-    document.querySelectorAll('.route-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.route === routeKey);
-    });
-    
+// Switch travel direction
+function switchDirection() {
+    currentDirection = currentDirection === 'forward' ? 'reverse' : 'forward';
+    localStorage.setItem('direction', currentDirection);
+    updateDirectionDisplay();
     loadConnections();
+}
+
+// Update direction display
+function updateDirectionDisplay() {
+    const directionText = document.querySelector('.direction-text');
+    if (currentDirection === 'forward') {
+        directionText.textContent = 'Floridsdorf → Wien Mitte';
+    } else {
+        directionText.textContent = 'Wien Mitte → Floridsdorf';
+    }
 }
 
 // Load connections
@@ -86,7 +64,7 @@ async function loadConnections() {
     showLoading(true);
     
     try {
-        const connections = await getConnections();
+        const connections = await getConnections(currentDirection);
         displayConnections(connections);
         updateLastUpdateTime();
         hideError();
@@ -98,15 +76,20 @@ async function loadConnections() {
 }
 
 // Get connections from API
-async function getConnections() {
+async function getConnections(direction = 'forward') {
     try {
-        const route = ROUTES[currentRoute];
-        const from = STATIONS[route.from];
-        const to = STATIONS[route.to];
+        let connections;
         
-        const connections = await fetchJourneys(from, to);
+        if (direction === 'forward') {
+            // Forward: Floridsdorf → Wien Mitte
+            connections = await fetchJourneys(STATIONS.FLORIDSDORF, STATIONS.WIEN_MITTE);
+        } else {
+            // Reverse: Wien Mitte → Floridsdorf
+            connections = await fetchJourneys(STATIONS.WIEN_MITTE, STATIONS.FLORIDSDORF);
+        }
         
-        console.log(`Route: ${route.label}, found ${connections.length} connections`);
+        // Log what we found
+        console.log(`Direction: ${direction}, found ${connections.length} connections`);
         
         return connections;
         
@@ -164,6 +147,15 @@ async function fetchJourneys(from, to, retries = 2) {
                 s?.replace(/\s*\(.*/, "").trim();
 
             return filtered.map(journey => {
+                // Log first leg to check available data
+                if (filtered.length > 0 && journey === filtered[0]) {
+                    console.log('Journey details:', {
+                        line: journey.legs[0].line,
+                        direction: journey.legs[0].direction,
+                        destination: journey.legs[0].destination
+                    });
+                }
+                
                 return {
                     departure: journey.legs[0].departure,
                     arrival: journey.legs[journey.legs.length - 1].arrival,
@@ -179,8 +171,8 @@ async function fetchJourneys(from, to, retries = 2) {
                         } : null,
                         platform: leg.departurePlatform,
                         delay: leg.departureDelay,
-                        direction: clean(leg.direction),
-                        destination: leg.destination
+                        direction: clean(leg.direction), // Add direction field
+                        destination: leg.destination // Add destination field
                     }))
                 };
             });
@@ -249,7 +241,6 @@ function createConnectionElement(connection) {
         <div class="connection-details">
             <div class="platform">Gleis ${firstLeg.platform || '?'}</div>
             <div class="arrival-time">Ankunft: ${formatTime(arrTime)}</div>
-            <div class="duration">${connection.duration} Min</div>
             ${connection.transfers > 0 ? `<div class="transfers">${connection.transfers} Umstieg${connection.transfers > 1 ? 'e' : ''}</div>` : ''}
         </div>
     `;
