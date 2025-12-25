@@ -16,7 +16,7 @@ const ROUTES = {
 };
 
 // Allowed transport types (S-Bahn, REX only)
-const ALLOWED_PRODUCTS = ['suburban', 'regional', 'national', 'nationalExpress', 'interregional', 'national'];
+const ALLOWED_PRODUCTS = ['suburban', 'regional', 'national'];
 
 // App state
 let currentRoute = 'f-m';
