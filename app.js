@@ -1,7 +1,7 @@
 // Configuration
 const API = "https://oebb.macistry.com/api";
 const STATIONS = {
-    FLORIDSDORF: "1192101",
+    FLORIDSDORF: "1292101",
     WIEN_MITTE: "1290302",
     PRATERSTERN: "1290201",
     TRAISENGASSE: "1292002"
