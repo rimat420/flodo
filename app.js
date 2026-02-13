@@ -355,8 +355,8 @@ function createConnectionElement(connection) {
             </div>
             <div class="right-section">
                 <div class="train-direction">${trainDirection}</div>
-                <div class="arrival-time">Ankunft: ${formatTime(arrTime)}</div>
-                <div class="duration">Fahrzeit: ${connection.duration} Min</div>
+                <div class="arrival-time">${formatTime(arrTime)}</div>
+                <div class="duration">${connection.duration} Min</div>
             </div>
         </div>
     `;
