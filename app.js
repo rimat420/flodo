@@ -321,37 +321,48 @@ function displayConnections(connections) {
 function createConnectionElement(connection) {
     const div = document.createElement('div');
     div.className = 'connection';
-    
+
     const depTime = new Date(connection.departure);
     const arrTime = new Date(connection.arrival);
     const firstLeg = connection.legs[0];
-    
+
     // Get delay info
     const delay = firstLeg.delay ? Math.round(firstLeg.delay / 60) : 0;
     const delayText = delay > 0 ? `<span class="delay">+${delay}</span>` : '';
-    
+
+    // Calculate time until departure
+    const now = new Date();
+    const minutesUntil = Math.round((depTime - now) / 60000);
+    const timeUntilText = minutesUntil >= 0 ? `in ${minutesUntil} Min` : `vor ${-minutesUntil} Min`;
+
     // Get train direction (end destination)
     const trainDirection = firstLeg.direction || firstLeg.line?.direction || '';
-    
+
     div.innerHTML = `
         <div class="connection-header">
-            <div class="departure-time">
-                ${formatTime(depTime)}
-                ${delayText}
+            <div class="left-section">
+                <div class="departure-time">
+                    ${formatTime(depTime)}
+                    ${delayText}
+                </div>
+                <div class="platform">Gleis ${firstLeg.platform || '?'}</div>
+                <div class="time-until">${timeUntilText}</div>
             </div>
-            <div class="train-line">
-                <span class="train-type ${getProductClass(firstLeg.line.product)}">${firstLeg.line.name}</span>
+            <div class="middle-section">
+                <div class="train-line">
+                    <span class="train-type ${getProductClass(firstLeg.line.product)}">${firstLeg.line.name}</span>
+                </div>
             </div>
-            <div class="train-direction">${trainDirection}</div>
-        </div>
-        <div class="connection-details">
-            <div class="platform">Gleis ${firstLeg.platform || '?'}</div>
-            <div class="arrival-time">Ankunft: ${formatTime(arrTime)}</div>
-            <div class="duration">${connection.duration} Min</div>
-            ${connection.transfers > 0 ? `<div class="transfers">${connection.transfers} Umstieg${connection.transfers > 1 ? 'e' : ''}</div>` : ''}
+            <div class="right-section">
+                <div class="train-direction">${trainDirection}</div>
+                <div class="arrival-info">
+                    <span class="arrival-time">${formatTime(arrTime)}</span>
+                    <span class="duration">${connection.duration} Min</span>
+                </div>
+            </div>
         </div>
     `;
-    
+
     return div;
 }
 

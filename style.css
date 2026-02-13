@@ -94,9 +94,31 @@ h1 {
 .connection-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
+    align-items: flex-start;
     gap: 10px;
+}
+
+.left-section {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 0 0 auto;
+}
+
+.middle-section {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+}
+
+.right-section {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+    align-items: flex-end;
+    text-align: right;
 }
 
 .departure-time {
@@ -104,23 +126,30 @@ h1 {
     font-weight: 600;
     display: flex;
     align-items: center;
-    flex: 0 0 auto;
 }
 
 .train-line {
-    flex: 0 0 auto;
     text-align: center;
     font-size: 20px;
 }
 
 .train-direction {
-    flex: 1;
-    text-align: right;
     font-size: 14px;
     color: #aaa;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.time-until {
+    font-size: 12px;
+    color: #888;
+}
+
+.arrival-info {
+    display: flex;
+    gap: 8px;
+    font-size: 14px;
 }
 
 .delay {
@@ -129,11 +158,6 @@ h1 {
     margin-left: 5px;
 }
 
-.connection-details {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
 
 .train-type {
     background: #333;
@@ -235,20 +259,23 @@ h1 {
     .departure-time {
         font-size: 26px;
     }
-    
+
     .train-direction {
         font-size: 16px;
     }
-    
+
     .train-type {
         font-size: 22px;
         padding: 3px 10px;
     }
-    
+
     .platform,
-    .arrival-time,
-    .duration {
-        font-size: 22px;
+    .time-until {
+        font-size: 14px;
+    }
+
+    .arrival-info {
+        font-size: 16px;
     }
     
     .transfers {
