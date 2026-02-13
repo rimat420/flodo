@@ -223,20 +223,12 @@ async function fetchJourneys(from, to, retries = 2) {
                 .filter(journey => {
                     // Must have legs
                     if (!journey.legs || journey.legs.length === 0) return false;
-                    
-                    // Filter for S-Bahn and Regional trains
-                    const hasValidTransport = journey.legs.some(leg => {
-                        if (!leg.line || !leg.line.product) return false;
-                        // Check for S-Bahn or Regional trains
-                        return ALLOWED_PRODUCTS.includes(leg.line.product);
-                    });
-                    
-                    // Also check that it's not just walking
-                    const hasPublicTransport = journey.legs.some(leg => 
-                        leg.line && leg.line.product
-                    );
-                    
-                    return hasValidTransport && hasPublicTransport;
+
+                    // First leg must be S-Bahn or Regional train (no walking!)
+                    const firstLeg = journey.legs[0];
+                    if (!firstLeg.line || !firstLeg.line.product) return false;
+
+                    return ALLOWED_PRODUCTS.includes(firstLeg.line.product);
                 });
             
             console.log(`Found ${filtered.length} valid journeys after filtering`);
