@@ -134,8 +134,9 @@ h1 {
 }
 
 .train-direction {
-    font-size: 14px;
-    color: #aaa;
+    font-size: 20px;
+    font-weight: 600;
+    color: #fff;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -144,12 +145,6 @@ h1 {
 .time-until {
     font-size: 12px;
     color: #888;
-}
-
-.arrival-info {
-    display: flex;
-    gap: 8px;
-    font-size: 14px;
 }
 
 .delay {
@@ -172,20 +167,11 @@ h1 {
 .train-type.sbahn { background: #0066cc; }
 .train-type.rex { background: #cc0000; }
 
-.platform {
-    color: #888;
-    font-size: 14px;
-}
-
-.arrival-time {
-    font-size: 14px;
-    color: #aaa;
-}
-
+.platform,
+.arrival-time,
 .duration {
-    font-size: 14px;
+    font-size: 12px;
     color: #888;
-    font-weight: 500;
 }
 
 .transfers {
@@ -261,7 +247,7 @@ h1 {
     }
 
     .train-direction {
-        font-size: 16px;
+        font-size: 26px;
     }
 
     .train-type {
@@ -270,12 +256,10 @@ h1 {
     }
 
     .platform,
-    .time-until {
+    .time-until,
+    .arrival-time,
+    .duration {
         font-size: 14px;
-    }
-
-    .arrival-info {
-        font-size: 16px;
     }
     
     .transfers {
