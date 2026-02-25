@@ -175,7 +175,7 @@ async function getConnections() {
 // Fetch journeys from API with retry logic
 async function fetchJourneys(from, to, retries = 2) {
     // Simplified URL without potentially problematic parameters
-    const url = `${API}/journeys?from=${from}&to=${to}&results=5`;
+    const url = `${API}/journeys?from=${from}&to=${to}&results=5&remarks=false`;
     
     console.log(`Fetching journeys: ${from} -> ${to}`);
     console.log(`URL: ${url}`);
