@@ -263,7 +263,7 @@ async function fetchJourneys(from, to, retries = 2) {
             console.log(`\n📊 Summary: Found ${filtered.length} valid journeys after filtering (from ${data.journeys.length} total)`);
             
             const clean = (s) => s
-                ?.replace(/\b(bahnhof|station|Wien|hbf|Bahnhst|im\s+Weinviertel)\b/gi, "")
+                ?.replace(/\b(bahnhof|station|Wien|hbf|Bahnhst|-Hippersdorf|-Reichenau an der Rax|im\s+Weinviertel)\b/gi, "")
                 .replace(/\s+/g, " ")
                 .trim();
 
