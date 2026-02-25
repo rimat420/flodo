@@ -217,21 +217,50 @@ async function fetchJourneys(from, to, retries = 2) {
             }
             
             console.log(`Raw journeys count: ${data.journeys.length}`);
-            
+
             // Filter and process journeys - now done after API call
             const filtered = data.journeys
-                .filter(journey => {
+                .filter((journey, index) => {
+                    console.log(`\n=== Journey ${index + 1} ===`);
+
                     // Must have legs
-                    if (!journey.legs || journey.legs.length === 0) return false;
+                    if (!journey.legs || journey.legs.length === 0) {
+                        console.log(`❌ FILTERED: No legs found`);
+                        return false;
+                    }
+
+                    console.log(`Legs count: ${journey.legs.length}`);
+
+                    // Log all legs to see structure
+                    journey.legs.forEach((leg, legIndex) => {
+                        console.log(`  Leg ${legIndex + 1}:`, {
+                            line: leg.line?.name || 'NO LINE',
+                            product: leg.line?.product || 'NO PRODUCT',
+                            direction: leg.direction,
+                            departure: leg.departure,
+                            arrival: leg.arrival
+                        });
+                    });
 
                     // First leg must be S-Bahn or Regional train (no walking!)
                     const firstLeg = journey.legs[0];
-                    if (!firstLeg.line || !firstLeg.line.product) return false;
+                    if (!firstLeg.line || !firstLeg.line.product) {
+                        console.log(`❌ FILTERED: First leg has no line or product`);
+                        console.log(`  firstLeg.line:`, firstLeg.line);
+                        return false;
+                    }
 
-                    return ALLOWED_PRODUCTS.includes(firstLeg.line.product);
+                    const product = firstLeg.line.product;
+                    if (!ALLOWED_PRODUCTS.includes(product)) {
+                        console.log(`❌ FILTERED: Product "${product}" not in allowed list [${ALLOWED_PRODUCTS.join(', ')}]`);
+                        return false;
+                    }
+
+                    console.log(`✅ ACCEPTED: ${firstLeg.line.name} (${product})`);
+                    return true;
                 });
-            
-            console.log(`Found ${filtered.length} valid journeys after filtering`);
+
+            console.log(`\n📊 Summary: Found ${filtered.length} valid journeys after filtering (from ${data.journeys.length} total)`);
             
             const clean = (s) => s
                 ?.replace(/\b(bahnhof|station|Wien|hbf|Bahnhst|im\s+Weinviertel)\b/gi, "")
